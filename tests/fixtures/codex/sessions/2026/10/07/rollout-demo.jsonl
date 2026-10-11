@@ -1,0 +1,4 @@
+{"timestamp":"2026-10-07T14:30:00.000Z","type":"session_meta","payload":{"session_id":"codex-demo-1","cwd":"E:\\demo\\proj"}}
+{"timestamp":"2026-10-07T14:30:05.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"调研一下替代方案"}]}}
+{"timestamp":"2026-10-07T14:31:00.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"对比了三种替代方案：一是继续用现有方案加缓存，二是换轻量库，三是自研。结论是换轻量库性价比最高，改动面小且性能提升明显，已把对比数据整理成表格。"}]}}
+{"timestamp":"2026-10-07T14:31:30.000Z","type":"response_item","payload":{"type":"function_call","name":"shell"}}

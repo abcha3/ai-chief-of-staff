@@ -46,6 +46,16 @@ Each tool has its own ~50-line adapter (`collect_*` in `aicos.py`) with graceful
 
 Copy `SKILL.md`, `aicos.py`, `aicos_html.py` into your agent's skills directory (e.g. `~/.agents/skills/ai-chief-of-staff/`), then ask your agent: *"What did my AIs do today?"*
 
+Or `pip install .` to get an `aicos` CLI.
+
+## Tests (adapter regression samples)
+
+AI tool log formats drift. `tests/fixtures/` holds hand-crafted, sanitized samples — the suite goes red when an adapter breaks:
+
+```bash
+python -m unittest discover -s tests    # zero dependencies, 17 cases
+```
+
 ## Roadmap
 
 - [x] MVP: multi-source scan → events → md/html report (table + themes + filters)

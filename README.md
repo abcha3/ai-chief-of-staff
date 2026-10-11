@@ -31,7 +31,7 @@ python aicos.py report --summarizer agent # 导出 summary-input.json 交给 LLM
 >
 > ⚠️ **数据安全**：所有采集器**只读**打开数据文件（含 SQLite 只读模式），不写入、不联网、不上传。不放心？先 `python aicos.py scan` 看 stderr 的采集日志。
 
-依赖：Python 3.11+（解析 DeepSeek Harness 的压缩会话需 3.14+ 或 `pip install zstandard`）。**零第三方依赖、零网络请求、纯本地只读。**
+依赖：Python 3.11+（解析 DeepSeek Harness 的压缩会话需 3.14+ 或 `pip install zstandard`）。**零第三方依赖、零网络请求、纯本地只读。** 也可以 `pip install .` 装成 `aicos` 命令。
 
 ## 支持的数据源
 
@@ -56,6 +56,14 @@ python aicos.py report --summarizer agent # 导出 summary-input.json 交给 LLM
 - **AI 都做了哪些东西**：一张表，每行 = AI 做的一件事，按时间排序；类型徽章：`需求 交付 任务 修复 决策 调研 提交 AI陈述`；可按类型/项目筛选；
 - **📎 证据列**：每行都锚定到会话文件 / 交付文件 / commit，点开可核对——AI 总结不可信？证据链兜底；
 - **🎨 换肤**：明亮 / 护眼淡黄 / 深色黑，选择记在本地 localStorage。
+
+## 测试（适配器回归样本）
+
+各家 AI 工具的日志格式会变，`tests/fixtures/` 里存有**人工构造的脱敏样本**，哪个适配器坏了测试就红：
+
+```bash
+python -m unittest discover -s tests    # 零依赖，17 个用例
+```
 
 ## 设计原则
 
