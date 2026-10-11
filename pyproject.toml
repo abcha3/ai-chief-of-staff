@@ -21,7 +21,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-name/ai-chief-of-staff"
+Homepage = "https://github.com/abcha3/ai-chief-of-staff"
 
 [project.scripts]
 aicos = "aicos:main"
