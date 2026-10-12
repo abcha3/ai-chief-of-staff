@@ -53,10 +53,12 @@ def svg_donut(counts: dict) -> str:
             f'<div class="legend">{legend}</div></div>')
 
 
-def svg_bars(pairs, title: str, color: str = "#2563eb", horizontal: bool = False) -> str:
-    """柱状图（纯 SVG）：pairs = [(label, value)]。"""
+def svg_bars(pairs, title: str, color: str = "#2563eb", horizontal: bool = False,
+             full: bool = False) -> str:
+    """柱状图（纯 SVG）：pairs = [(label, value)]。full=True 时独占一行（类别多时用）。"""
     if not pairs:
         return ""
+    box_cls = "chart chart-wide" if full else "chart"
     if horizontal:  # 横向条形：项目对比
         w, rowh, label_w = 330, 26, 104
         maxv = max(v for _, v in pairs) or 1
@@ -71,25 +73,44 @@ def svg_bars(pairs, title: str, color: str = "#2563eb", horizontal: bool = False
                 f'fill="{color}" opacity=".85"><title>{html.escape(str(lab))}: {v}</title></rect>'
                 f'<text x="{label_w+bw+6:.1f}" y="{y+16}" class="bv">{v}</text>'
             )
-        return (f'<div class="chart"><div class="chart-t">{html.escape(title)}</div>'
+        return (f'<div class="{box_cls}"><div class="chart-t">{html.escape(title)}</div>'
                 f'<svg width="100%" viewBox="0 0 {w} {h}">{"".join(bars)}</svg></div>')
-    w, h, pad = 380, 160, 28
-    maxv = max(v for _, v in pairs) or 1
+    # —— 纵向柱状（时间分布）：宽度随天数变大、标签抽稀，保证看清不重叠 ——
     n = len(pairs)
+    w = max(380, min(n * 34, 1360))
+    h = 215
+    pad = 30
+    maxv = max(v for _, v in pairs) or 1
     step = (w - pad * 2) / max(n, 1)
-    bw = min(48, step * 0.6)
+    bw = min(52, max(step * 0.62, 4))
+    # 标签抽稀：按可用宽度决定每隔几根柱子标一个字
+    max_labels = max(2, int((w - pad * 2) // 72))
+    label_every = max(1, (n + max_labels - 1) // max_labels)
+    # 最后一根柱子只在离上一个标签够远时才补标，避免两个字挤在一起
+    last_ok = (n - 1) % label_every >= (label_every + 1) // 2
+    show_val = step >= 22 and n <= 26
     bars = []
     for i, (lab, v) in enumerate(pairs):
-        bh = (h - pad * 2 - 20) * v / maxv
+        bh = (h - pad * 2 - 28) * v / maxv
         x = pad + step * i + (step - bw) / 2
-        y = h - pad - 20 - bh
+        y = h - pad - 22 - bh
+        short = str(lab)
+        if len(short) == 10 and short[4] == "-":
+            short = short[5:]                       # 2026-09-12 → 09-12（年份在标题里）
         bars.append(
             f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:.1f}" height="{max(bh,2):.1f}" rx="4" '
             f'fill="{color}" opacity=".85"><title>{html.escape(str(lab))}: {v}</title></rect>'
-            f'<text x="{x+bw/2:.1f}" y="{h-pad-6}" class="bl" text-anchor="middle">{html.escape(str(lab)[:9])}</text>'
-            f'<text x="{x+bw/2:.1f}" y="{y-5:.1f}" class="bv" text-anchor="middle">{v}</text>'
         )
-    return (f'<div class="chart"><div class="chart-t">{html.escape(title)}</div>'
+        if i % label_every == 0 or (i == n - 1 and last_ok):
+            bars.append(
+                f'<text x="{x+bw/2:.1f}" y="{h-pad-4}" class="bl" text-anchor="middle">'
+                f'{html.escape(short)}</text>'
+            )
+        if show_val and v:
+            bars.append(
+                f'<text x="{x+bw/2:.1f}" y="{y-5:.1f}" class="bv" text-anchor="middle">{v}</text>'
+            )
+    return (f'<div class="{box_cls}"><div class="chart-t">{html.escape(title)}</div>'
             f'<svg width="100%" viewBox="0 0 {w} {h}">{"".join(bars)}</svg></div>')
 
 
@@ -262,6 +283,8 @@ td.ev { color:var(--muted); font-size:11.5px; max-width:180px; overflow:hidden; 
 .stat span { color:var(--muted); font-size:12px; }
 .charts { display:flex; flex-wrap:wrap; gap:16px; margin-top:14px; }
 .chart { background:var(--accent-soft); border-radius:12px; padding:14px 16px; flex:1 1 300px; min-width:280px; }
+.chart-wide { flex:1 1 100%; }
+.chart svg { display:block; }
 .chart-t { font-size:12px; color:var(--muted); margin-bottom:8px; }
 .donut-wrap { position:relative; width:140px; margin:0 auto; }
 .donut-hole { position:absolute; top:0; left:0; width:140px; height:140px;
@@ -271,7 +294,7 @@ td.ev { color:var(--muted); font-size:11.5px; max-width:180px; overflow:hidden; 
 .legend { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px 12px; justify-content:center; }
 .lg { font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:5px; }
 .lg i { width:10px; height:10px; border-radius:3px; display:inline-block; }
-text.bl { font-size:10px; fill:var(--muted); }
+text.bl { font-size:11px; fill:var(--muted); }
 text.bv { font-size:10.5px; fill:var(--fg); font-weight:600; }
 th { cursor:pointer; user-select:none; }
 th:hover { color:var(--accent); }
@@ -456,7 +479,7 @@ def render_html(data: dict, day: date, days: int = 1, summary: dict | None = Non
     charts = [
         svg_donut(kc),
         svg_bars(proj_counts.most_common(8), "项目对比", color="#0ea5e9", horizontal=True),
-        svg_bars(sorted(time_counts.items()), time_title, color="#8b5cf6"),
+        svg_bars(sorted(time_counts.items()), time_title, color="#8b5cf6", full=True),
     ]
 
     out = (HTML_TEMPLATE
