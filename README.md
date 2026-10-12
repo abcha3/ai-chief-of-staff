@@ -25,6 +25,7 @@ python aicos.py all --days 30             # 任意区间汇总
 python aicos.py decisions --days 30       # 只要 30 天的 🧭 决策时间线
 python aicos.py scan                      # 只采集，产 events.json
 python aicos.py report --summarizer agent # 导出 summary-input.json 交给 LLM 精炼
+python aicos.py report --summary out/summary.json  # 把 Agent 写的人话摘要注入报告（技能的核心用法）
 ```
 
 > ⚠️ **隐私警告**：`out/` 里的日报/事件包含你的 prompt、文件路径和业务数据（持仓、代码、文档名……），**只在这台机器上看**；分享截图/报告前先打码。仓库的 `.gitignore` 已排除 `out/`，不会误提交。

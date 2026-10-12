@@ -1034,7 +1034,31 @@ def digest_line(proj: str, evs: list, in_window, commits: list[dict]) -> tuple[s
     return name, headline, details, stats
 
 
-def render_report(data: dict, day: date, days: int = 1) -> str:
+def load_summary(path) -> dict:
+    """读取 Agent 精炼摘要：{ "<项目名或路径>": {"name":?, "headline": str, "details": [str]} }"""
+    try:
+        j = json.loads(Path(path).read_text(encoding="utf-8"))
+        if isinstance(j, dict) and isinstance(j.get("items"), dict):
+            j = j["items"]
+        return j if isinstance(j, dict) else {}
+    except Exception as e:
+        _out(f"[summary] 读取 {path} 失败，回退启发式摘要：{e}")
+        return {}
+
+
+def pick_summary(summary: dict, proj: str, name: str):
+    """按 项目全路径 / 显示名 / 目录名（大小写不敏感）匹配 Agent 写的摘要。"""
+    if not summary:
+        return None
+    folded = {str(k).casefold(): v for k, v in summary.items()}
+    for k in (proj, name, Path(proj).name or proj):
+        v = folded.get(str(k).casefold())
+        if isinstance(v, dict):
+            return v
+    return None
+
+
+def render_report(data: dict, day: date, days: int = 1, summary: dict | None = None) -> str:
     win = data.get("window") or {}
     try:
         win_start = datetime.fromisoformat(win["start"])
@@ -1071,10 +1095,19 @@ def render_report(data: dict, day: date, days: int = 1) -> str:
     span = "今天" if days == 1 else f"近 {days} 天"
     L.append(f"## 🎯 {span}，每个 AI 完成了哪些重要功能（先看这里）")
     L.append("")
-    L.append("> 只列用户看得懂的功能与成果；内部工程细节（单测/脚手架/日志…）不进这里，全量记录见下方明细。")
+    if summary:
+        L.append("> ✍️ 本节摘要由 **Agent 基于事件层改写（人话版）**；证据与全量记录见下方明细。")
+    else:
+        L.append("> 只列用户看得懂的功能与成果；内部工程细节（单测/脚手架/日志…）不进这里，全量记录见下方明细。")
     L.append("")
     for proj, evs in sorted(by_proj.items()):
         name, headline, details, stats = digest_line(proj, evs, in_window, commits)
+        ov = pick_summary(summary or {}, proj, name)
+        if ov:
+            name = str(ov.get("name") or name)
+            headline = str(ov.get("headline") or headline)
+            if ov.get("details"):
+                details = [str(x) for x in ov["details"]][:6]
         L.append(f"### {name}｜{headline}")
         L.append("")
         if stats:
@@ -1293,6 +1326,8 @@ def main() -> int:
                     help="扫描 git 仓库的根目录（可重复）；默认取会话项目公共祖先")
     ap.add_argument("--summarizer", choices=["none", "agent"], default="none",
                     help="agent=导出 summary-input.json 供 LLM/Agent 精炼")
+    ap.add_argument("--summary", default=None,
+                    help="Agent 精炼摘要 JSON（项目→{headline,details}），注入替代启发式摘要")
     args = ap.parse_args()
 
     day = date.fromisoformat(args.date)
@@ -1343,14 +1378,15 @@ def main() -> int:
         _out(f"[decisions] 决策日志 → {dec}")
         if args.command == "decisions":
             return 0
-        md = render_report(data, day, days)
+        summary = load_summary(args.summary) if args.summary else None
+        md = render_report(data, day, days, summary=summary)
         rpt = out_dir / f"{base}.md"
         rpt.write_text(md, encoding="utf-8")
         _out(f"[report] 日报 → {rpt}")
         try:
             from aicos_html import render_html
             hfile = out_dir / f"{base}.html"
-            hfile.write_text(render_html(data, day, days), encoding="utf-8")
+            hfile.write_text(render_html(data, day, days, summary=summary), encoding="utf-8")
             _out(f"[report] HTML 日报（表格+换肤）→ {hfile}")
         except Exception as e:
             _out(f"[report] HTML 生成失败：{e}")

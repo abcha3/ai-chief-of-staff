@@ -159,10 +159,10 @@ def build_rows(data: dict, day: date) -> list[dict]:
     return rows
 
 
-def build_summary(data: dict, day: date) -> list[str]:
-    """「今天干了什么」：AI 真的做了什么（复用 aicos.digest_line）。"""
+def build_summary(data: dict, day: date, summary: dict | None = None) -> list[str]:
+    """「完成了哪些重要功能」：复用 aicos.digest_line，支持 Agent 精炼摘要注入。"""
     from collections import defaultdict
-    from aicos import digest_line
+    from aicos import digest_line, pick_summary
     win_start, win_end = _window(data, day)
 
     def inw(iso: str) -> bool:
@@ -178,6 +178,12 @@ def build_summary(data: dict, day: date) -> list[str]:
     lines = []
     for proj, evs in sorted(by_proj.items()):
         name, headline, details, stats = digest_line(proj, evs, inw, data.get("git_commits") or [])
+        ov = pick_summary(summary or {}, proj, name)
+        if ov:
+            name = str(ov.get("name") or name)
+            headline = str(ov.get("headline") or headline)
+            if ov.get("details"):
+                details = [str(x) for x in ov["details"]][:6]
         det = "".join(f"<li>{html.escape(d)}</li>" for d in details)
         st = f'<div class="proj-stats">{html.escape(stats)}</div>' if stats else ""
         lines.append(
@@ -297,7 +303,7 @@ td.ev a:hover { text-decoration:underline; }
 
   <div class="card">
     <b>🎯 完成了哪些重要功能</b>
-    <div class="chart-t" style="margin:4px 0 0">只列用户看得懂的功能与成果；内部工程细节（单测/脚手架/日志…）不进这里，全量记录见下方明细表。</div>
+    <div class="chart-t" style="margin:4px 0 0">__DIGEST_NOTE__</div>
     <div class="projects">__SUMMARY__</div>
   </div>
 
@@ -389,9 +395,9 @@ applyFilter();
 """
 
 
-def render_html(data: dict, day: date, days: int = 1) -> str:
+def render_html(data: dict, day: date, days: int = 1, summary: dict | None = None) -> str:
     rows = build_rows(data, day)
-    summary = build_summary(data, day)
+    summary_html = build_summary(data, day, summary=summary)
     projs = sorted({r["proj"] for r in rows})
     win_start, win_end = _window(data, day)
     multi_day = (win_end - win_start).days > 1
@@ -458,7 +464,11 @@ def render_html(data: dict, day: date, days: int = 1) -> str:
            .replace("__DATE__", label)
            .replace("__TITLE__", label)
            .replace("__NOW__", datetime.now().strftime("%Y-%m-%d %H:%M"))
-           .replace("__SUMMARY__", "\n".join(summary))
+           .replace("__SUMMARY__", "\n".join(summary_html))
+           .replace("__DIGEST_NOTE__",
+                    ("✍️ 本节摘要由 <b>Agent 基于事件层改写（人话版）</b>；证据与全量记录见下方明细表。"
+                     if summary else
+                     "只列用户看得懂的功能与成果；内部工程细节（单测/脚手架/日志…）不进这里，全量记录见下方明细表。"))
            .replace("__KIND_BTNS__", kind_btns)
            .replace("__PROJ_OPTS__", proj_opts)
            .replace("__ROWS__", "\n".join(row_html))

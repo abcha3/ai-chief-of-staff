@@ -239,6 +239,20 @@ class TestPipelineSmoke(unittest.TestCase):
         self.assertLessEqual(len(headline), 80)
         self.assertTrue(headline)
 
+    def test_summary_injection(self):
+        """Agent 精炼摘要注入：人话版覆盖启发式摘要。"""
+        from aicos_html import render_html
+        summary = {"proj": {"headline": "修复了动画卡顿，游戏不再闪退",
+                            "details": ["人话细节：换了渲染方式", "人话细节：加了兜底"]}}
+        self.assertIsNotNone(aicos.pick_summary(summary, "E:\\demo\\proj", "proj"))
+        md = aicos.render_report(self.data, datetime(2026, 10, 7).date(), days=1, summary=summary)
+        self.assertIn("修复了动画卡顿，游戏不再闪退", md)
+        self.assertIn("Agent 基于事件层改写", md)
+        self.assertIn("人话细节：换了渲染方式", md)
+        html_out = render_html(self.data, datetime(2026, 10, 7).date(), days=1, summary=summary)
+        self.assertIn("修复了动画卡顿，游戏不再闪退", html_out)
+        self.assertIn("Agent 基于事件层改写", html_out)
+
 
 if __name__ == "__main__":
     unittest.main()
