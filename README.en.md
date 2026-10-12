@@ -10,7 +10,7 @@ When you vibe-code N projects in parallel, you can't remember what the AIs actua
 
 | Output | What it is |
 |---|---|
-| `out/daily-YYYY-MM-DD.html` | **Main view** — single-file webpage: "What the AIs did today" headlines + a filterable table (time / project / type / content / evidence), 3 themes (light / eye-care sepia / dark) |
+| `out/daily-YYYY-MM-DD.html` | **Main view** — single-file webpage: "What important features each AI completed" headlines (plain language, internal engineering noise filtered out) + a filterable table (time / project / type / content / evidence), 3 themes (light / eye-care sepia / dark) |
 | `out/daily-YYYY-MM-DD.md` | Markdown version (paste into issues / Notion) |
 | `out/decisions-YYYY-MM-DD.md` | 🧭 **Decision log** — every decision/trade-off your AIs made, in reverse-chronological timeline, each with evidence |
 | `out/weekly-YYYY-MM-DD.md` | Weekly (`--days 7`) or any-range rollup (`--days N`) |

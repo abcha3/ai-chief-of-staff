@@ -296,7 +296,8 @@ td.ev a:hover { text-decoration:underline; }
   </header>
 
   <div class="card">
-    <b>📝 今天干了什么</b>
+    <b>🎯 完成了哪些重要功能</b>
+    <div class="chart-t" style="margin:4px 0 0">只列用户看得懂的功能与成果；内部工程细节（单测/脚手架/日志…）不进这里，全量记录见下方明细表。</div>
     <div class="projects">__SUMMARY__</div>
   </div>
 

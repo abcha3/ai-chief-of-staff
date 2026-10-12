@@ -879,9 +879,73 @@ def _pool(evs, in_window) -> list[tuple[str, str]]:
     return pool
 
 
+# 「用户看得懂的功能」启发式：功能词加分、内部工程词减分
+FEATURE_MARKS = ("支持", "新增", "上线", "发布", "完成", "实现", "加入", "开放", "交付", "搞定",
+                 "推出", "优化", "修复", "解决", "打通", "接入", "导出", "分享", "生成", "一键",
+                 "自动", "可以", "登录", "注册", "撤回", "退回", "预览", "切换", "落地", "收工",
+                 "support", "add", "implement", "launch", "release", "finish", "built", "fixed")
+INTERNAL_MARKS = ("单测", "自检", "断言", "测试用例", "test", "ci", "lint", "格式化", "rename",
+                  "refactor", "脚手架", "初始化", "工程骨架", "依赖", "版本号", "升级", "日志",
+                  "告警", "白名单", "协议层", "变量名", "chore", "docs", "readme", "注释",
+                  "snapshot", "迁移", "migration", "埋点", "打点", "纯逻辑", "工具函数", "类型体操")
+
+
+def importance(text: str) -> int:
+    """粗判一句话是「用户看得懂的功能」(+分) 还是「内部工程细节」(-分)。"""
+    low = (text or "").lower()
+    score = sum(1 for m in FEATURE_MARKS if m in low)
+    score -= 2 * sum(1 for m in INTERNAL_MARKS if m in low)
+    return score
+
+
+def plain_phrase(s: str) -> str:
+    """去掉工程黑话外壳：markdown 记号、代码标识符、文件名、里程碑编号。"""
+    s = clean_text(s, 240).lstrip("# ").strip()
+    s = re.sub(r"\*\*|__|~~|`[^`]*`", "", s)                          # markdown 强调/代码
+    s = re.sub(r"[A-Za-z0-9_\-./\\]+\.(?:py|js|ts|tsx|jsx|json|md|kt|java|go|rs|css|html|mjs|sql|yml|yaml|toml)\b", "", s)
+    s = re.sub(r"^[PpMmVv]\d[\w\-①②③④⑤⑥⑦⑧⑨]*[：:、\-）)]?\s*", "", s)
+    s = re.sub(r"\s+", " ", s)
+    return s.strip(" -—:：·、，,　+＋*=【】")
+
+
+def _trim_dangling(s: str) -> str:
+    """剪掉尾巴上的悬空虚词/符号（"…抗 NaN +" / "…在可用模型列表中找到了"）。"""
+    s = s.strip(" -—:：·、，,　+＋*=【】")
+    while s and s[-1] in "在了的和与把被就都很是及跟给向让从由对于":
+        s = s[:-1].strip(" -—:：·、，,　+＋*=【】")
+    return s
+
+
+def short_phrase(s: str) -> str:
+    """大字标题用的简略说法：在破折号/冒号/标点边界截断，宁短勿断词。"""
+    s = plain_phrase(s)
+    for sep in ("—", "——", "：", "（", "(", "【"):
+        i = s.find(sep)
+        if i >= 6 and len(s) > 24:
+            s = s[:i]
+    if len(s) > 30:
+        cut = max(s.rfind(c, 0, 30) for c in "，、； 　")
+        s = s[:cut] if cut >= 10 else s[:30]
+    return _trim_dangling(s)
+
+
+def clip_sentence(s: str, limit: int = 60) -> str:
+    """小字细节：在句读边界截断，宁短勿断词。"""
+    s = plain_phrase(s)
+    if len(s) <= limit:
+        return _trim_dangling(s) if len(s) <= 30 else s
+    cut = max(s.rfind(c, 0, limit) for c in "。；;，、 　")
+    return (s[:cut] if cut >= 12 else s[:limit]).strip(" -—:：·、，,　")
+
+
+def _looks_like_question(t: str) -> bool:
+    """会话标题是疑问句时，不适合当「AI 名字」。"""
+    return bool(re.search(r"[？?]|吗$|怎么|如何|为什么|能否|是否|是不是|多少|哪个", t))
+
+
 def digest_line(proj: str, evs: list, in_window, commits: list[dict]) -> tuple[str, str, list[str], str]:
-    """「今天干了什么」→ (项目名, 大字标题, 小字细节[], 统计串)。
-    大字标题 = 今天最主要的 1-2 件成果（简略）；小字细节 = 其余要点。
+    """「每个 AI 完成了哪些重要功能」→ (名字, 大字标题, 小字细节[], 统计串)。
+    只挑用户看得懂的功能/成果，内部工程细节（单测/脚手架/日志…）不进摘要。
     素材只取 AI 自己的工作记录（任务清单/交付描述/提交信息），不照抄用户原话。"""
     dones = [t.get("content", "") for e in evs for t in (e.get("todos") or [])
              if t.get("status") == "completed"]
@@ -897,75 +961,65 @@ def digest_line(proj: str, evs: list, in_window, commits: list[dict]) -> tuple[s
     # 目录名是日期串/编号（WorkBuddy 等）时，用会话标题当「AI 名字」——更像名字
     if re.match(r"^\d{4}-\d{2}-\d{2}", name) or name.isdigit() or name.lower() in ("default", "1"):
         titles = [clean_text(e.get("title", ""), 30) for e in evs if e.get("title")]
-        if titles:
-            name = max(set(titles), key=titles.count)
+        good = [t for t in titles if not _looks_like_question(t)]
+        pool = good or titles
+        if pool:
+            name = max(set(pool), key=pool.count)
 
     def strip_commit(m: str) -> str:
         m = re.sub(r"^(commit|merge|reset)(\s*\(.*?\))?[：: ]+", "", m)
         m = re.sub(r"^(feat|fix|chore|refactor|docs|test|style)(\(.*?\))?[：: ]+", "", m)
-        return clean_text(m, 46)
+        return plain_phrase(m)
 
-    def short_phrase(s: str) -> str:
-        """取短语：在破折号/冒号/括号前截断，得到「大字标题」用的简略说法。"""
-        s = clean_text(s, 160)
-        for sep in ("—", "——", "：", "(", "（"):
-            i = s.find(sep)
-            if i >= 6 and len(s) > 22:
-                s = s[:i]
-        return clip(s.strip(" -—:：·"), 24)
-
-    # —— 候选条目：(权重, 文本) ——
-    feats = [(3, strip_commit(c["message"])) for c in pcommits
-             if not c["message"].lower().startswith(("clone", "checkout"))
-             and c["message"].lower().lstrip("commit: ").startswith(("feat", "新增"))]
-    deliv_items = [(3, f"交付《{Path(d.get('path','')).name}》{clip(d.get('description',''), 36)}")
-                   for d in delivs[:6] if d.get("path")]
-    todo_items = [(2, clip(t, 46)) for t in dones if clip(t, 6)]
-    commit_items = [(1, strip_commit(c["message"])) for c in pcommits
-                    if not c["message"].lower().startswith(("clone", "checkout"))
-                    and strip_commit(c["message"])]
-    outcome_items = []
+    # —— 候选条目：(重要度, 文本)，交付/功能提交权重高，内部工程细节往后排 ——
+    raw: list[tuple[int, str]] = []
+    for c in pcommits:
+        if not c["message"].lower().startswith(("clone", "checkout")):
+            t = strip_commit(c["message"])
+            if t:
+                raw.append((2 + importance(t), t))
+    for d in delivs[:8]:
+        t = plain_phrase(d.get("description", ""))
+        if t:
+            raw.append((3 + importance(t), t))
+    for t in dones:
+        t = plain_phrase(t)
+        if len(t) >= 6:
+            raw.append((2 + importance(t), t))
     for o in outcomes:
         first = re.split(r"[。！？\n]", clean_text(o, 400))[0]
         if len(first) > 12:
-            outcome_items.append((1, clip(first, 46)))
+            raw.append((1 + importance(first), plain_phrase(first)))
+    raw = [(w, t) for w, t in raw if len(t) >= 6]
+    raw.sort(key=lambda x: -x[0])
 
-    # —— 大字标题：权重最高的 1-2 个成果，取简略短语 ——
-    headline_pool = ([(3, short_phrase(strip_commit(c["message"]))) for c in pcommits
-                      if not c["message"].lower().startswith(("clone", "checkout"))
-                      and c["message"].lower().lstrip("commit: ").startswith(("feat", "新增"))]
-                     + [(3, short_phrase(d.get("description", ""))) for d in delivs if d.get("description")]
-                     + [(2, short_phrase(t)) for t in dones])
-    headline_pool = [(w, t) for w, t in headline_pool if len(t) >= 4]
-    headline_pool.sort(key=lambda x: -x[0])
+    # 只留「用户看得懂」的条目；如果全被滤掉（纯内部工程日），退回全量
+    visible = [(w, t) for w, t in raw if importance(t) >= 0]
+    if len(visible) < 2:
+        visible = raw
+
+    # —— 大字标题：最重要的 1-2 件事，简略说法 ——
     headline_parts: list[str] = []
-    for _, txt in headline_pool:
-        if txt and txt not in headline_parts:
-            headline_parts.append(txt)
+    for _, txt in visible:
+        p = short_phrase(txt)
+        if len(p) >= 4 and p not in headline_parts:
+            headline_parts.append(p)
         if len(headline_parts) >= 2:
             break
     headline = " ＋ ".join(headline_parts)
 
-    # —— 小字细节：标题之外的其余要点（按 权重优先、时间顺序铺开）——
+    # —— 小字细节：标题之外、同样是「看得懂」的成果 ——
     used = set(headline_parts)
     details: list[str] = []
-    for _, txt in (deliv_items + todo_items + feats + commit_items):
-        t = clip(txt, 70)
-        if not t or t in used or t in details or t == headline:
+    for _, txt in visible:
+        t = clip_sentence(txt, 60)
+        if not t or t in used or short_phrase(t) in used or t in details:
             continue
         details.append(t)
-        if len(details) >= 6:
+        if len(details) >= 5:
             break
-    # AI 收尾陈述只在素材不足时补充（信息密度低）
-    if len(details) < 3:
-        for _, txt in outcome_items:
-            t = clip(txt, 70)
-            if t and t not in details:
-                details.append(t)
-            if len(details) >= 5:
-                break
     if not headline and details:
-        headline = details.pop(0)
+        headline = short_phrase(details.pop(0))
     if not headline:
         headline = f"有 {len(evs)} 个会话，但未留下任务/交付记录"
 
@@ -1013,8 +1067,11 @@ def render_report(data: dict, day: date, days: int = 1) -> str:
                 if Path(c["repo"]).as_posix().lower() in Path(proj).as_posix().lower()
                 or Path(proj).as_posix().lower() in Path(c["repo"]).as_posix().lower()]
 
-    # ---------- 今天干了什么（大字标题 + 小字细节） ----------
-    L.append("## 📝 今天干了什么（先看这里）")
+    # ---------- 完成了哪些重要功能（大字标题 + 小字细节） ----------
+    span = "今天" if days == 1 else f"近 {days} 天"
+    L.append(f"## 🎯 {span}，每个 AI 完成了哪些重要功能（先看这里）")
+    L.append("")
+    L.append("> 只列用户看得懂的功能与成果；内部工程细节（单测/脚手架/日志…）不进这里，全量记录见下方明细。")
     L.append("")
     for proj, evs in sorted(by_proj.items()):
         name, headline, details, stats = digest_line(proj, evs, in_window, commits)

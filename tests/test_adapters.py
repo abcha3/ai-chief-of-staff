@@ -221,14 +221,14 @@ class TestPipelineSmoke(unittest.TestCase):
                 self.assertIn(key, e)
 
     def test_md_report(self):
-        self.assertIn("今天干了什么", self.md)
+        self.assertIn("完成了哪些重要功能", self.md)
         self.assertIn("proj", self.md.lower())
         self.assertIn("跨项目统计", self.md)
 
     def test_html_report(self):
         self.assertIn("data-theme", self.html)
         self.assertIn("class=\"chart\"", self.html)
-        self.assertIn("今天干了什么", self.html)
+        self.assertIn("完成了哪些重要功能", self.html)
 
     def test_decisions_report(self):
         self.assertIn("决策日志", self.dec)
