@@ -1,93 +1,120 @@
-# AI Chief of Staff
+<p align="right">
+  <b>简体中文</b> | <a href="README.en.md">English</a>
+</p>
 
-> **让 AI 总结电脑上所有 AI 干了什么。** 跨项目、跨工具的「AI 工作履历」——今天 AI 做了哪些功能、修了哪些 bug、替你做了哪些决策，一张表看清，每条可回溯证据。
+<div align="center">
 
-一个人同时 vibe coding N 个项目时，根本记不住 AI 都干了啥。本工具只读扫描你本机所有 AI 编程工具的会话日志 + git 记录，自动生成**每日日报**。
+# 🗂️ AI 工作日报 · AI Chief of Staff
 
-## 效果
+### 自动总结你电脑上**所有 AI** 都干了什么 —— 日报 / 周报 / 任意区间，条条带证据
 
-| 产物 | 说明 |
+**AI daily report / weekly report generator** —— 扫描 Claude Code、Codex、WorkBuddy 等 AI 工具的会话日志和 git 记录，
+生成一份人能看懂的「AI 工作汇报」：谁、做成了什么功能、修了什么 bug、替你做了什么决定。
+
+[![Python](https://img.shields.io/badge/Python-3.14%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/abcha3/ai-daily-report)](https://github.com/abcha3/ai-daily-report/releases)
+[![Tests](https://img.shields.io/badge/tests-21%20passed-brightgreen)](tests/)
+
+**数据源：** DeepSeek Harness · Claude Code · Codex · WorkBuddy · CodeBuddy · Cursor · Windsurf · Gemini CLI · Aider · git reflog
+
+</div>
+
+---
+
+## 😩 你是不是也这样
+
+- 同时开着 5、6 个 AI 干不同的项目，**三天后就想不起来它们到底做成了什么**
+- 想复盘「AI 替我做过哪些决定」，只能翻几十万字的会话记录
+- 项目太多，某个 AI 修的 bug、上的功能，完全没有一份**能看的工作总结**
+
+这个工具就是干这个的：**一条命令，把所有 AI 的工作日志变成一份带证据的日报/周报。**
+
+## 📸 报告长什么样
+
+单文件 HTML，浏览器直接打开，三套皮肤（护眼淡黄 / 明亮 / 深色），可筛选可打印：
+
+```markdown
+## 🎯 近 30 天，每个 AI 完成了哪些重要功能（先看这里）
+
+### Upward｜『晚记』上线：记账 + 日历 + 周复盘，修好时长 bug
+*2 处修复 · 16 条提交 · 📁 E:\AIProject\Upward*
+- 修好『填了内容却显示 0 分』的时长 bug
+- 记一笔支持富文本（加粗/字号/颜色/表情）
+- 三套配色可切换（明亮/护眼淡黄/深色黑）
+
+### Walk｜『行迹』轨迹分享图工具：拖入 GPX 就能出图
+*86 份交付 · 28 处修复 · 6 条提交 · 📁 E:\AIProject\Walk*
+- 主界面支持拖放 GPX、切换版式、导出分享图
+- 长卷/方帖两种版式都能出成品
+```
+
+每个 AI 一个**大字标题**（它最主要干成了什么）+ 小字细节 + 📁 路径锚点；下面还有：
+
+| 区块 | 内容 |
 |---|---|
-| `out/daily-YYYY-MM-DD.html` | **主界面**：单文件网页——「AI 都做了哪些东西」总表（时间/项目/类型/内容/证据，可按类型与项目筛选），右上角一键换肤（☀️明亮 / 🍵护眼淡黄 / 🌙深色黑），手机也能看 |
-| `out/daily-YYYY-MM-DD.md` | Markdown 版（适合贴 issue / 飞书 / Notion） |
-| `out/decisions-YYYY-MM-DD.md` | 🧭 **决策日志**：所有 AI 替你做过的决策/取舍，按时间倒序串成时间线，每条带证据 |
-| `out/weekly-YYYY-MM-DD.md` | 周报（`--days 7`）或任意区间汇总（`--days N`） |
-| `out/daily-YYYY-MM-DD-llm.md` | 可选 LLM 精炼版（叙事 + 跨项目洞察） |
-| `out/events.json` | 事件层原始数据，可自己接 LLM / 做统计 |
+| 📊 统计与图表 | 类型分布环形图、项目对比条形图、每日/每小时产出柱状图 |
+| 📋 明细表 | 每行 = AI 做的一件事，可按类型/项目筛选、按时间排序 |
+| 📎 证据列 | 每行锚定会话文件 / 交付文件 / commit，点开可核对——AI 总结不可信？证据链兜底 |
+| 🧭 决策日志 | 单独产出：AI 替你做的技术选型/产品取舍，时间线 + 证据 |
 
-## 快速开始
+## ⚡ 30 秒上手
 
 ```bash
-python aicos.py all                       # 采集 + 生成今天的日报（md + html + 决策日志）
-python aicos.py all --date 2026-10-09     # 指定日期
-python aicos.py all --days 7              # 周报（含当天往前 7 天）
+git clone https://github.com/abcha3/ai-daily-report.git
+cd ai-daily-report
+
+python aicos.py all                       # 今天的日报（md + html + 决策日志）
+python aicos.py all --days 7              # 周报
 python aicos.py all --days 30             # 任意区间汇总
-python aicos.py decisions --days 30       # 只要 30 天的 🧭 决策时间线
-python aicos.py scan                      # 只采集，产 events.json
-python aicos.py report --summarizer agent # 导出 summary-input.json 交给 LLM 精炼
-python aicos.py report --summary out/summary.json  # 把 Agent 写的人话摘要注入报告（技能的核心用法）
+python aicos.py report --date 2026-10-11  # 回看某一天
 ```
 
-> ⚠️ **隐私警告**：`out/` 里的日报/事件包含你的 prompt、文件路径和业务数据（持仓、代码、文档名……），**只在这台机器上看**；分享截图/报告前先打码。仓库的 `.gitignore` 已排除 `out/`，不会误提交。
->
-> ⚠️ **数据安全**：所有采集器**只读**打开数据文件（含 SQLite 只读模式），不写入、不联网、不上传。不放心？先 `python aicos.py scan` 看 stderr 的采集日志。
+产物在 `out/` 目录，`daily-*.html` 双击就能看。需要 Python 3.14+（或 `pip install zstandard`）；纯标准库、只读、不联网。缺哪个数据源自动跳过。
 
-依赖：Python 3.11+（解析 DeepSeek Harness 的压缩会话需 3.14+ 或 `pip install zstandard`）。**零第三方依赖、零网络请求、纯本地只读。** 也可以 `pip install .` 装成 `aicos` 命令。
+> 也可以装成 Agent 技能（推荐）：把 `SKILL.md`、`aicos.py`、`aicos_html.py` 放进 `~/.agents/skills/ai-chief-of-staff/`，
+> 然后直接问你的 AI：**「总结一下我今天 AI 都干了啥」**。
 
-## 支持的数据源
+## 🧠 工作原理（三层管线）
 
-| 工具 | 读取位置 | 采集信号 |
-|---|---|---|
-| DeepSeek Harness | `~/.dsh/sessions` | 用户消息、AI 收尾陈述、**交付文件**、**任务清单**、**压缩摘要（含决策）**、审批原因、子代理、搜索记录 |
-| Claude Code | `~/.claude/projects`、`~/.claude/history.jsonl` | 用户/助手消息、工具调用与文件改动 |
-| Codex | `~/.codex/sessions` | 会话元数据、用户/助手消息 |
-| Cursor / Windsurf（实验） | `%APPDATA%/*/User/workspaceStorage` | 项目归属、活动时间，尽力抽取 `state.vscdb` 里的对话 |
-| Gemini CLI / opencode（实验） | `~/.gemini`、`~/.local/share/opencode` | 通用 JSON 对话收割 |
-| **WorkBuddy 桌面端** | `~/.workbuddy/workbuddy.db`、`tasks/` | 会话标题/项目、**自动化任务每次运行的 AI 工作汇报**、任务清单 |
-| **CodeBuddy CLI** | `~/.codebuddy/projects`、`tasks/` | 用户/助手消息、AI 标题、任务清单 |
-| Aider（实验） | 各仓库 `.aider.chat.history.md` | 会话历史 |
-| git（证据交叉验证） | 各仓库 `.git/logs/HEAD` | 提交时间/信息（**不需要 git.exe**，纯文件读取） |
+```
+事实层（只读采集）           事件层                摘要层
+┌─────────────────┐    ┌──────────────┐    ┌──────────────────┐
+│ DeepSeek Harness │    │              │    │ 大字标题 + 小字    │
+│ Claude Code      │──▶ │ events.json  │──▶ │ 图表 / 明细表      │
+│ Codex / WorkBuddy│    │ （结构化事件） │ │ 决策日志           │
+│ CodeBuddy / git  │    │              │    │ md + HTML 报告     │
+└─────────────────┘    └──────────────┘    └──────────────────┘
+```
 
-实验性适配器采用**通用启发式**：能读出对话就抽对话，读不出至少留下"项目 + 时间 + 文件"的活动痕迹，格式不对时静默降级。
-新增工具只需加一个 adapter（参考 `aicos.py` 里 `collect_*` 函数，每个约 50 行）——**欢迎贡献适配器**！
-
-## 它长什么样（HTML 报告）
-
-- **🎯 完成了哪些重要功能**：每个 AI 一个大字标题 + 小字细节，只挑用户看得懂的功能/成果，内部工程细节（单测/脚手架/日志…）自动过滤；
-- **AI 都做了哪些东西**：一张表，每行 = AI 做的一件事，按时间排序；类型徽章：`需求 交付 任务 修复 决策 调研 提交 AI陈述`；可按类型/项目筛选；
-- **📎 证据列**：每行都锚定到会话文件 / 交付文件 / commit，点开可核对——AI 总结不可信？证据链兜底；
-- **🎨 换肤**：明亮 / 护眼淡黄 / 深色黑，选择记在本地 localStorage。
-
-## 测试（适配器回归样本）
-
-各家 AI 工具的日志格式会变，`tests/fixtures/` 里存有**人工构造的脱敏样本**，哪个适配器坏了测试就红：
+- **程序负责保真**：只筛选和清洗 AI 自己的工作记录（任务清单/交付描述/提交信息），不编造、不改写事实
+- **Agent 负责说人话**（技能模式）：AI 读 `events.json` 后把摘要改写成大白话，写进 `out/summary.json`，
+  再用 `--summary` 注入报告——「修复 AuthManager 缺少 login_user」变成「修好登录态丢失的问题」
 
 ```bash
-python -m unittest discover -s tests    # 零依赖，17 个用例
+python aicos.py report --summary out/summary.json   # 把 AI 写的人话摘要注入报告
 ```
 
-## 设计原则
+## 🔒 隐私与安全
 
-1. **本地隐私**：只读采集、不上传、不联网；你的 prompt 和代码不出这台电脑；
-2. **证据链**：每条摘要可回溯（会话 ID / 文件路径 / commit sha）；
-3. **用户视角**：先讲"你让 AI 做了什么、AI 交付了什么"，AI 内部叙述放最后；
-4. **容错**：每工具一个适配器，日志格式漂移互不影响，单条解析失败只跳过该条。
+- 采集器**只读**你的日志目录（SQLite 也用只读模式打开），不修改任何项目文件，不联网
+- ⚠️ `out/` 产物包含你的会话内容摘要和文件路径，**别直接公开上传**；分享前先过一遍
+- 发现日志里有硬编码密钥等安全问题，技能模式下 AI 会主动提醒你
 
-## 路线图
+## 🧪 测试
 
-- [x] MVP：多源采集 → 事件层 → md/html 日报（表格 + 换肤 + 筛选）
-- [x] 🧭 决策日志视图（`decisions` 命令，任意时间跨度的决策时间线）
-- [x] 周报 / 任意区间汇总（`--days N`）
-- [x] 「支持所有 AI」：Cursor / Windsurf / Gemini CLI / opencode / Aider 实验性适配器
-- [ ] V0.2：`--summarizer llm` 自动精炼（本地模型/API 皆可插拔）
-- [ ] V0.5：SQLite 增量索引 + 语义搜索（"上次为什么改用 xx 方案"）
-- [ ] V1.0：定时任务 + 推送（飞书 / 邮件 / Notion）；多机聚合
+各家 AI 工具的日志格式会变，`tests/fixtures/` 存有人工构造的脱敏样本，哪个适配器坏了测试就红：
 
-## 已知限制
+```bash
+python -m unittest discover -s tests   # 21 个用例
+```
 
-- 分类（需求/交付/修复/决策…）为关键词启发式，长文本可能误判进某栏目——证据列可核对，V0.2 换 LLM 分类；
-- 会话日志格式由各工具自行定义且会变化，适配器需要跟随更新（欢迎 issue/PR）。
+## 🗺 Roadmap
 
-## License
+- [ ] `--summarizer llm`：不通过 Agent、直接调用 LLM API 精炼摘要
+- [ ] 更多适配器：更多 AI 编程工具的会话格式
+- [ ] 周报邮件/飞书推送
 
-[MIT](LICENSE) ｜ 你的数据永远属于你：本工具不收集任何遥测。
+## 📄 License
+
+[MIT](LICENSE) ｜ 用了觉得好用，给个 ⭐ Star 让更多人看到

@@ -3,14 +3,14 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-chief-of-staff"
+name = "ai-daily-report"
 version = "0.1.0"
-description = "Summarize what ALL AI agents on your machine did today — local, read-only, evidence-backed daily reports"
+description = "AI work daily/weekly report generator — summarize what ALL AI agents on your machine did today: local, read-only, evidence-backed"
 readme = "README.en.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
-authors = [{ name = "ai-chief-of-staff contributors" }]
-keywords = ["ai", "agents", "daily-report", "vibe-coding", "observability", "devtools"]
+authors = [{ name = "ai-daily-report contributors" }]
+keywords = ["ai", "agents", "daily-report", "weekly-report", "work-report", "activity-log", "vibe-coding", "observability", "devtools"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -21,7 +21,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/abcha3/ai-chief-of-staff"
+Homepage = "https://github.com/abcha3/ai-daily-report"
 
 [project.scripts]
 aicos = "aicos:main"

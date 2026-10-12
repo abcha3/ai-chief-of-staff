@@ -1,71 +1,125 @@
-# AI Chief of Staff
+<p align="right">
+  <a href="README.md">简体中文</a> | <b>English</b>
+</p>
 
-**Let AI summarize what ALL your AIs did today.**
+<div align="center">
 
-When you vibe-code N projects in parallel, you can't remember what the AIs actually built, fixed, or decided. AI Chief of Staff scans the *local logs* of every AI tool on your machine (read-only, offline) and generates a daily report with an evidence trail.
+# 🗂️ AI Chief of Staff — AI Work Report Generator
 
-> 中文文档见 [README.md](README.md)。Windows-first; macOS/Linux work too (missing sources are skipped gracefully).
+### Automatically summarize what **all your AI agents** did — daily / weekly / any range, every claim backed by evidence
 
-## What you get
+Scan the session logs and git history of every AI coding tool on your machine, and turn them
+into a human-readable work report: which features shipped, which bugs got fixed, which decisions
+your AIs made for you.
 
-| Output | What it is |
+[![Python](https://img.shields.io/badge/Python-3.14%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/abcha3/ai-daily-report)](https://github.com/abcha3/ai-daily-report/releases)
+[![Tests](https://img.shields.io/badge/tests-21%20passed-brightgreen)](tests/)
+
+**Sources:** DeepSeek Harness · Claude Code · Codex · WorkBuddy · CodeBuddy · Cursor · Windsurf · Gemini CLI · Aider · git reflog
+
+</div>
+
+---
+
+## 😩 Sounds familiar?
+
+- You run 5–6 AI agents across different projects and **three days later you can't remember what they actually finished**
+- You want to review "what decisions did my AIs make for me" but that means digging through hundreds of thousands of tokens of chat logs
+- There is no readable work summary — just noise
+
+This tool fixes that: **one command turns all your AI work logs into an evidence-backed report.**
+
+## 📸 What the report looks like
+
+A single-file HTML page — open it in a browser, three themes (eye-care sepia / light / dark), filterable, printable:
+
+```markdown
+## 🎯 What important features each AI completed (look here first)
+
+### Upward | Journal app launched: entries + calendar + weekly review, fixed the duration bug
+*2 fixes · 16 commits · 📁 E:\AIProject\Upward*
+- Fixed the bug where entries showed "0 minutes"
+- Rich-text entries (bold / size / color / emoji)
+- Three color themes (light / eye-care / dark)
+
+### Walk | "Walk" — GPX trail poster tool: drop a GPX, get a shareable image
+*86 deliverables · 28 fixes · 6 commits · 📁 E:\AIProject\Walk*
+- Drag & drop GPX, switch layouts, export share images
+- Both long-scroll and square layouts produce final-quality output
+```
+
+Every AI gets a **big headline** (its main achievement) + small details + a 📁 path anchor. Below that:
+
+| Section | What's inside |
 |---|---|
-| `out/daily-YYYY-MM-DD.html` | **Main view** — single-file webpage: "What important features each AI completed" headlines (plain language, internal engineering noise filtered out) + a filterable table (time / project / type / content / evidence), 3 themes (light / eye-care sepia / dark) |
-| `out/daily-YYYY-MM-DD.md` | Markdown version (paste into issues / Notion) |
-| `out/decisions-YYYY-MM-DD.md` | 🧭 **Decision log** — every decision/trade-off your AIs made, in reverse-chronological timeline, each with evidence |
-| `out/weekly-YYYY-MM-DD.md` | Weekly (`--days 7`) or any-range rollup (`--days N`) |
-| `out/events.json` | Structured events — feed it to your own LLM |
+| 📊 Stats & charts | Donut (event types), horizontal bars (per project), daily/hourly output bars |
+| 📋 Detail table | One row = one thing an AI did; filter by type/project, sort by time |
+| 📎 Evidence column | Every row anchors to a session file / deliverable / commit — don't trust AI summaries? Verify them |
+| 🧭 Decision log | Separate timeline of every technical/product decision your AIs made, with evidence |
 
-## Quick start
-
-```bash
-python aicos.py all                    # today's report (md + html + decision log)
-python aicos.py all --days 7           # weekly
-python aicos.py decisions --days 30    # decision timeline for the last 30 days
-```
-
-- Pure Python stdlib (3.11+; Python 3.14+ needed to read DeepSeek Harness compressed sessions, or `pip install zstandard`).
-- Read-only collectors, no network, no upload. Missing tools are skipped silently.
-
-> ⚠️ **Privacy**: `out/` contains your prompts, file paths and business data. Keep it local; redact before sharing screenshots. `.gitignore` already excludes `out/`.
-
-## Supported tools
-
-DeepSeek Harness · Claude Code · Codex · **WorkBuddy** (incl. automation-run reports) · **CodeBuddy** · Cursor · Windsurf · Gemini CLI · opencode · Aider · git (evidence cross-check, no git.exe needed).
-
-Each tool has its own ~50-line adapter (`collect_*` in `aicos.py`) with graceful degradation — **adapter contributions welcome** (good first issue!).
-
-## Design principles
-
-1. **Local & private** — read-only, offline, your prompts never leave the machine.
-2. **Evidence chain** — every summary line anchors to a session file / deliverable / commit sha. Don't trust AI summaries? Click the evidence.
-3. **User perspective** — "what did the AI actually do" first; internal AI narration last.
-4. **Fault-tolerant** — one broken adapter never breaks the scan.
-
-## Install as a skill
-
-Copy `SKILL.md`, `aicos.py`, `aicos_html.py` into your agent's skills directory (e.g. `~/.agents/skills/ai-chief-of-staff/`), then ask your agent: *"What did my AIs do today?"*
-
-Or `pip install .` to get an `aicos` CLI.
-
-## Tests (adapter regression samples)
-
-AI tool log formats drift. `tests/fixtures/` holds hand-crafted, sanitized samples — the suite goes red when an adapter breaks:
+## ⚡ Quick start (30 seconds)
 
 ```bash
-python -m unittest discover -s tests    # zero dependencies, 17 cases
+git clone https://github.com/abcha3/ai-daily-report.git
+cd ai-daily-report
+
+python aicos.py all                       # today's report (md + html + decision log)
+python aicos.py all --days 7              # weekly
+python aicos.py all --days 30             # any range
+python aicos.py report --date 2026-10-11  # look back at a specific day
 ```
 
-## Roadmap
+Outputs land in `out/`; open `daily-*.html` in your browser. Requires Python 3.14+ (or `pip install zstandard`).
+Pure stdlib, read-only, no network. Missing data sources are skipped automatically.
 
-- [x] MVP: multi-source scan → events → md/html report (table + themes + filters)
-- [x] 🧭 Decision log view (`decisions` command)
-- [x] Weekly / arbitrary range (`--days N`)
-- [x] WorkBuddy / CodeBuddy / Cursor / Windsurf / Gemini CLI / opencode / Aider adapters
-- [ ] V0.2: `--summarizer llm` headline & digest refinement
-- [ ] V0.5: SQLite incremental index + semantic search ("why did we switch to X?")
-- [ ] V1.0: scheduled runs + push (Feishu / email / Notion)
+> Or install it as an agent skill (recommended): copy `SKILL.md`, `aicos.py`, `aicos_html.py` into
+> `~/.agents/skills/ai-chief-of-staff/`, then just ask your agent: **"What did my AIs do today?"**
 
-## License
+## 🧠 How it works (three-layer pipeline)
 
-MIT
+```
+Facts (read-only collectors)      Events              Digest
+┌─────────────────┐    ┌──────────────┐    ┌──────────────────┐
+│ DeepSeek Harness │    │              │    │ Big headlines     │
+│ Claude Code      │──▶ │ events.json  │──▶ │ charts / table    │
+│ Codex / WorkBuddy│    │  (structured)│    │ decision log      │
+│ CodeBuddy / git  │    │              │    │ md + HTML report  │
+└─────────────────┘    └──────────────┘    └──────────────────┘
+```
+
+- **The program keeps facts honest**: it only filters and cleans the AIs' own work records
+  (todo lists / deliverable descriptions / commit messages) — never invents, never rewrites facts
+- **The agent speaks human** (skill mode): the agent reads `events.json`, rewrites the digest into
+  plain language, writes `out/summary.json`, then injects it with `--summary` —
+  "fix: AuthManager missing login_user" becomes "fixed the login-state loss bug"
+
+```bash
+python aicos.py report --summary out/summary.json   # inject agent-written summaries
+```
+
+## 🔒 Privacy & security
+
+- Collectors are **read-only** over your log directories (SQLite opened in read-only mode); no project files are modified; no network access
+- ⚠️ `out/` contains summaries of your session content and file paths — **don't publish it as-is**
+- In skill mode the agent will warn you if it spots hardcoded secrets in the logs
+
+## 🧪 Tests
+
+AI tool log formats change; `tests/fixtures/` holds hand-crafted sanitized samples so a broken
+adapter turns the suite red:
+
+```bash
+python -m unittest discover -s tests   # 21 cases
+```
+
+## 🗺 Roadmap
+
+- [ ] `--summarizer llm`: refine summaries by calling an LLM API directly (no agent needed)
+- [ ] More adapters for more AI coding tools
+- [ ] Weekly report delivery: email / Slack / Feishu push
+
+## 📄 License
+
+[MIT](LICENSE) ｜ If this saved you time, a ⭐ Star helps others find it
