@@ -160,9 +160,9 @@ def build_rows(data: dict, day: date) -> list[dict]:
 
 
 def build_summary(data: dict, day: date, summary: dict | None = None) -> list[str]:
-    """「完成了哪些重要功能」：复用 aicos.digest_line，支持 Agent 精炼摘要注入。"""
+    """「完成了哪些重要功能」：与 md 共用 aicos.digest_entries（同名合并/滤闲聊/Agent 注入）。"""
     from collections import defaultdict
-    from aicos import digest_line, pick_summary
+    from aicos import digest_entries
     win_start, win_end = _window(data, day)
 
     def inw(iso: str) -> bool:
@@ -175,22 +175,21 @@ def build_summary(data: dict, day: date, summary: dict | None = None) -> list[st
     by_proj: dict[str, list[dict]] = defaultdict(list)
     for s in data["sessions"]:
         by_proj[s.get("project") or "(未知项目)"].append(s)
+    entries, skipped = digest_entries(by_proj, inw, data.get("git_commits") or [], summary)
     lines = []
-    for proj, evs in sorted(by_proj.items()):
-        name, headline, details, stats = digest_line(proj, evs, inw, data.get("git_commits") or [])
-        ov = pick_summary(summary or {}, proj, name)
-        if ov:
-            name = str(ov.get("name") or name)
-            headline = str(ov.get("headline") or headline)
-            if ov.get("details"):
-                details = [str(x) for x in ov["details"]][:6]
-        det = "".join(f"<li>{html.escape(d)}</li>" for d in details)
-        st = f'<div class="proj-stats">{html.escape(stats)}</div>' if stats else ""
+    for ent in entries:
+        det = "".join(f"<li>{html.escape(d)}</li>" for d in ent["details"])
+        st_bits = [ent["stats"]] if ent["stats"] else []
+        st_bits.append("📁 " + ent["path"])
+        st = f'<div class="proj-stats">{html.escape(" · ".join(st_bits))}</div>'
         lines.append(
-            f'<div class="proj"><h3><span class="proj-name">{html.escape(name)}</span>'
-            f'<span class="proj-head">{html.escape(headline)}</span></h3>{st}'
+            f'<div class="proj"><h3><span class="proj-name">{html.escape(ent["name"])}</span>'
+            f'<span class="proj-head">{html.escape(ent["headline"])}</span></h3>{st}'
             f'<ul class="proj-detail">{det}</ul></div>'
         )
+    if skipped:
+        lines.append(f'<div class="proj"><span class="proj-head" style="font-size:14px">'
+                     f'（另有 {skipped} 个会话没留下任务/交付记录，未列出）</span></div>')
     return lines
 
 

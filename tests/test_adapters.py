@@ -233,6 +233,45 @@ class TestPipelineSmoke(unittest.TestCase):
     def test_decisions_report(self):
         self.assertIn("决策日志", self.dec)
 
+    def test_digest_skips_chatter_and_empty(self):
+        """闲聊/报错/空会话不进顶部摘要。"""
+        ev = aicos.new_event()
+        ev["tool"] = "x"
+        ev["session"] = "s1"
+        ev["outcomes"] = ["Authentication required."]
+        ev2 = aicos.new_event()
+        ev2["tool"] = "x"
+        ev2["session"] = "s2"
+        entries, skipped = aicos.digest_entries({"E:\\chat\\default": [ev, ev2]}, lambda t: True, [])
+        self.assertEqual(entries, [])
+        self.assertEqual(skipped, 1)
+
+    def test_digest_merges_same_name(self):
+        """同名项目（同一个 AI）合并为一条，不重复占位。"""
+        ev = aicos.new_event()
+        ev["tool"] = "x"
+        ev["session"] = "s1"
+        ev["todos"] = [{"content": "完成登录功能", "status": "completed"}]
+        entries, skipped = aicos.digest_entries(
+            {"E:\\a\\Test": [dict(ev)], "E:\\b\\Test": [dict(ev)]}, lambda t: True, [])
+        self.assertEqual(len(entries), 1)
+        self.assertIn("2 个项目合并", entries[0]["stats"])
+        self.assertEqual(skipped, 0)
+
+    def test_display_name_rules(self):
+        ev = aicos.new_event()
+        ev["session"] = "s1"
+        ev["tool"] = "x"
+        # 疑问句标题不当名字时退回……但至少比日期串强
+        ev["title"] = "询问本地agent能否控制会话"
+        self.assertEqual(aicos.display_name("C:\\wb\\2026-09-09-21-48-14", [ev]),
+                         "询问本地agent能否控制会话")
+        # 非疑问标题优先
+        ev["title"] = "晚记上线"
+        self.assertEqual(aicos.display_name("C:\\wb\\2026-09-09-21-48-14", [ev]), "晚记上线")
+        # 有意义的目录名直接用
+        self.assertEqual(aicos.display_name("E:\\proj\\Walk", []), "Walk")
+
     def test_digest_headline_short(self):
         name, headline, details, stats = aicos.digest_line(
             "E:\\demo\\proj", self.data["sessions"], lambda t: True, self.data["git_commits"])

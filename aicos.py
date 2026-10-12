@@ -943,28 +943,120 @@ def _looks_like_question(t: str) -> bool:
     return bool(re.search(r"[？?]|吗$|怎么|如何|为什么|能否|是否|是不是|多少|哪个", t))
 
 
-def digest_line(proj: str, evs: list, in_window, commits: list[dict]) -> tuple[str, str, list[str], str]:
+BAD_DIRNAMES = ("default", "1", "sessions", "projects")
+
+
+def _match_commits(projs: list[str], commits: list[dict]) -> list[dict]:
+    out = []
+    for c in commits:
+        rp = Path(c["repo"]).as_posix().lower()
+        if any(rp in Path(p).as_posix().lower() or Path(p).as_posix().lower() in rp
+               for p in projs):
+            out.append(c)
+    return out
+
+
+CHATTER_MARKS = ("authentication required", "please use /login", "/login", "连接成功",
+                 "确认完毕", "可以正常连接", "not defined", "traceback", "deepseek-",
+                 "glm-", "mimo-", "gpt-", "error:")
+
+
+def is_chatter(text: str) -> bool:
+    """连接测试 / 报错 / 寒暄文案——不是工作成果。"""
+    low = (text or "").strip().lower()
+    return any(m in low for m in CHATTER_MARKS)
+
+
+def has_work(evs: list, pcommits: list[dict]) -> bool:
+    """这个项目真留下过工作记录吗（任务 / 交付 / 提交 / 像样的收尾）？"""
+    if pcommits:
+        return True
+    for e in evs:
+        for t in e.get("todos") or []:
+            if t.get("status") == "completed" and t.get("content"):
+                return True
+        if e.get("deliverables"):
+            return True
+        for o in e.get("outcomes") or []:
+            if o and not is_chatter(o):
+                return True
+    return False
+
+
+def display_name(proj: str, evs: list) -> str:
+    """「AI 名字」：项目目录名；目录名没意义（日期串/default）时用会话标题或上级目录。
+    疑问句标题不当名字；标题里也取不到时才退回原标题。"""
+    name = Path(proj).name or proj
+    if re.match(r"^\d{4}-\d{2}-\d{2}", name) or name.isdigit() or name.lower() in BAD_DIRNAMES:
+        titles = [clean_text(e.get("title", ""), 30) for e in evs if e.get("title")]
+        good = [t for t in titles if not _looks_like_question(t)]
+        if good:
+            return max(set(good), key=good.count)
+        # 疑问句标题也比日期串强（Agent 精炼时可用 summary.json 的 name 改名）
+        if titles:
+            return max(set(titles), key=titles.count)
+        parent = Path(proj).parent.name
+        if parent and not parent.isdigit() and parent.lower() not in BAD_DIRNAMES \
+                and not re.match(r"^\d{4}-\d{2}-\d{2}", parent):
+            return parent
+    return name
+
+
+def digest_entries(by_proj: dict, in_window, commits: list[dict],
+                   summary: dict | None = None) -> tuple[list[dict], int]:
+    """顶部摘要条目（md/html 共用一份逻辑，避免两边不一致）：
+    同名条目合并（同名=同一个 AI）、没留下工作记录的会话不进顶部、支持 Agent 摘要注入。
+    返回 (条目列表, 被略去的会话数)。"""
+    from collections import defaultdict
+    groups: dict[str, list[tuple[str, list]]] = defaultdict(list)
+    for proj, evs in sorted(by_proj.items()):
+        groups[display_name(proj, evs)].append((proj, evs))
+    entries: list[dict] = []
+    skipped = 0
+    for gname, members in sorted(groups.items()):
+        projs = [p for p, _ in members]
+        merged = [e for _, evs in members for e in evs]
+        if not has_work(merged, _match_commits(projs, commits)):
+            skipped += 1
+            continue
+        _, headline, details, stats = digest_line(projs, merged, in_window, commits)
+        name = gname
+        ov = None
+        for p in projs:
+            ov = pick_summary(summary or {}, p, name)
+            if ov:
+                break
+        if ov:
+            name = str(ov.get("name") or name)
+            headline = str(ov.get("headline") or headline)
+            if ov.get("details"):
+                details = [str(x) for x in ov["details"]][:6]
+        # 路径大小写不同的同一项目算一个
+        uniq: list[str] = []
+        for p in projs:
+            if not any(p.casefold() == u.casefold() for u in uniq):
+                uniq.append(p)
+        if len(uniq) > 1:
+            stats = (stats + " · " if stats else "") + f"{len(uniq)} 个项目合并"
+        entries.append({"name": name, "headline": headline, "details": details,
+                        "stats": stats, "path": " / ".join(uniq[:3])})
+    return entries, skipped
+
+
+def digest_line(proj: str | list[str], evs: list, in_window, commits: list[dict]) -> tuple[str, str, list[str], str]:
     """「每个 AI 完成了哪些重要功能」→ (名字, 大字标题, 小字细节[], 统计串)。
     只挑用户看得懂的功能/成果，内部工程细节（单测/脚手架/日志…）不进摘要。
     素材只取 AI 自己的工作记录（任务清单/交付描述/提交信息），不照抄用户原话。"""
+    projs = proj if isinstance(proj, list) else [proj]
     dones = [t.get("content", "") for e in evs for t in (e.get("todos") or [])
              if t.get("status") == "completed"]
     delivs = [d for e in evs for d in (e.get("deliverables") or [])]
     outcomes = [o for e in evs for o in (e.get("outcomes") or [])]
-    pcommits = [c for c in commits
-                if Path(c["repo"]).as_posix().lower() in Path(proj).as_posix().lower()
-                or Path(proj).as_posix().lower() in Path(c["repo"]).as_posix().lower()]
+    pcommits = _match_commits(projs, commits)
     # 修复计数只看 AI 自己的工作记录（任务/收尾/交付描述），不含用户消息，避免"谈论修复"被误计
     fix_n = len([t for t in dones + outcomes + [d.get("description", "") for d in delivs]
-                 if "fix" in classify(t)])
-    name = Path(proj).name or proj
-    # 目录名是日期串/编号（WorkBuddy 等）时，用会话标题当「AI 名字」——更像名字
-    if re.match(r"^\d{4}-\d{2}-\d{2}", name) or name.isdigit() or name.lower() in ("default", "1"):
-        titles = [clean_text(e.get("title", ""), 30) for e in evs if e.get("title")]
-        good = [t for t in titles if not _looks_like_question(t)]
-        pool = good or titles
-        if pool:
-            name = max(set(pool), key=pool.count)
+                 if "fix" in classify(t) and not is_chatter(t)])
+    name = display_name(projs[0], evs)
 
     def strip_commit(m: str) -> str:
         m = re.sub(r"^(commit|merge|reset)(\s*\(.*?\))?[：: ]+", "", m)
@@ -1100,21 +1192,18 @@ def render_report(data: dict, day: date, days: int = 1, summary: dict | None = N
     else:
         L.append("> 只列用户看得懂的功能与成果；内部工程细节（单测/脚手架/日志…）不进这里，全量记录见下方明细。")
     L.append("")
-    for proj, evs in sorted(by_proj.items()):
-        name, headline, details, stats = digest_line(proj, evs, in_window, commits)
-        ov = pick_summary(summary or {}, proj, name)
-        if ov:
-            name = str(ov.get("name") or name)
-            headline = str(ov.get("headline") or headline)
-            if ov.get("details"):
-                details = [str(x) for x in ov["details"]][:6]
-        L.append(f"### {name}｜{headline}")
+    entries, skipped = digest_entries(by_proj, in_window, commits, summary)
+    for ent in entries:
+        L.append(f"### {ent['name']}｜{ent['headline']}")
         L.append("")
-        if stats:
-            L.append(f"*{stats}*")
-            L.append("")
-        for d in details:
+        sline = ent["stats"]
+        sline = (sline + " · " if sline else "") + f"📁 `{ent['path']}`"
+        L.append(f"*{sline}*")
+        L.append("")
+        for d in ent["details"]:
             L.append(f"- {d}")
+    if skipped:
+        L.append(f"> 另有 {skipped} 个会话没留下任务/交付记录，未列出（全量见下方明细表）。")
     L.append("")
 
     # ---------- 一眼看全 ----------
