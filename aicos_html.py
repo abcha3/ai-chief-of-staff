@@ -60,35 +60,38 @@ def svg_bars(pairs, title: str, color: str = "#2563eb", horizontal: bool = False
         return ""
     box_cls = "chart chart-wide" if full else "chart"
     if horizontal:  # 横向条形：项目对比
-        w, rowh, label_w = 330, 26, 104
+        w, rowh, label_w = 420, 32, 124
         maxv = max(v for _, v in pairs) or 1
-        h = rowh * len(pairs) + 8
+        h = rowh * len(pairs) + 10
         bars = []
         for i, (lab, v) in enumerate(pairs):
-            y = i * rowh + 4
-            bw = max((w - label_w - 52) * v / maxv, 2)
+            y = i * rowh + 5
+            bw = max((w - label_w - 60) * v / maxv, 2)
             bars.append(
-                f'<text x="0" y="{y+16}" class="bl">{html.escape(str(lab)[:11])}</text>'
-                f'<rect x="{label_w}" y="{y+3}" width="{bw:.1f}" height="{rowh-10}" rx="4" '
+                f'<text x="0" y="{y+20}" class="bl">{html.escape(str(lab)[:11])}</text>'
+                f'<rect x="{label_w}" y="{y+4}" width="{bw:.1f}" height="{rowh-13}" rx="4" '
                 f'fill="{color}" opacity=".85"><title>{html.escape(str(lab))}: {v}</title></rect>'
-                f'<text x="{label_w+bw+6:.1f}" y="{y+16}" class="bv">{v}</text>'
+                f'<text x="{label_w+bw+8:.1f}" y="{y+20}" class="bv">{v}</text>'
             )
         return (f'<div class="{box_cls}"><div class="chart-t">{html.escape(title)}</div>'
-                f'<svg width="100%" viewBox="0 0 {w} {h}">{"".join(bars)}</svg></div>')
-    # —— 纵向柱状（时间分布）：宽度随天数变大、标签抽稀，保证看清不重叠 ——
+                f'<div class="chart-scroll"><svg width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
+                f'{"".join(bars)}</svg></div></div>')
+    # —— 纵向柱状（时间分布）：按原始像素画（不随卡片缩放），字号大、标签抽稀，保证看清 ——
     n = len(pairs)
-    w = max(380, min(n * 34, 1360))
-    h = 215
-    pad = 30
+    w = max(560, min(n * 46, 1680))
+    h = 285
+    pad = 38
     maxv = max(v for _, v in pairs) or 1
     step = (w - pad * 2) / max(n, 1)
-    bw = min(52, max(step * 0.62, 4))
-    # 标签抽稀：按可用宽度决定每隔几根柱子标一个字
-    max_labels = max(2, int((w - pad * 2) // 72))
+    bw = min(60, max(step * 0.62, 6))
+    # 标签抽稀：每个标签至少隔 2 根柱子（约 90px），宁缺勿挤
+    max_labels = max(2, int((w - pad * 2) // 64))
     label_every = max(1, (n + max_labels - 1) // max_labels)
-    # 最后一根柱子只在离上一个标签够远时才补标，避免两个字挤在一起
-    last_ok = (n - 1) % label_every >= (label_every + 1) // 2
-    show_val = step >= 22 and n <= 26
+    if n > 4:
+        label_every = max(2, label_every)
+    # 最后一根柱子只在整除位置才补标，避免两个字挤在一起
+    last_ok = (n - 1) % label_every == 0
+    show_val = step >= 36 and n <= 31
     bars = []
     for i, (lab, v) in enumerate(pairs):
         bh = (h - pad * 2 - 28) * v / maxv
@@ -103,15 +106,16 @@ def svg_bars(pairs, title: str, color: str = "#2563eb", horizontal: bool = False
         )
         if i % label_every == 0 or (i == n - 1 and last_ok):
             bars.append(
-                f'<text x="{x+bw/2:.1f}" y="{h-pad-4}" class="bl" text-anchor="middle">'
+                f'<text x="{x+bw/2:.1f}" y="{h-pad-6}" class="bl" text-anchor="middle">'
                 f'{html.escape(short)}</text>'
             )
         if show_val and v:
             bars.append(
-                f'<text x="{x+bw/2:.1f}" y="{y-5:.1f}" class="bv" text-anchor="middle">{v}</text>'
+                f'<text x="{x+bw/2:.1f}" y="{y-6:.1f}" class="bv" text-anchor="middle">{v}</text>'
             )
     return (f'<div class="{box_cls}"><div class="chart-t">{html.escape(title)}</div>'
-            f'<svg width="100%" viewBox="0 0 {w} {h}">{"".join(bars)}</svg></div>')
+            f'<div class="chart-scroll"><svg width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
+            f'{"".join(bars)}</svg></div></div>')
 
 
 def session_hours(data: dict) -> str:
@@ -285,6 +289,7 @@ td.ev { color:var(--muted); font-size:11.5px; max-width:180px; overflow:hidden; 
 .chart { background:var(--accent-soft); border-radius:12px; padding:14px 16px; flex:1 1 300px; min-width:280px; }
 .chart-wide { flex:1 1 100%; }
 .chart svg { display:block; }
+.chart-scroll { overflow-x:auto; }
 .chart-t { font-size:12px; color:var(--muted); margin-bottom:8px; }
 .donut-wrap { position:relative; width:140px; margin:0 auto; }
 .donut-hole { position:absolute; top:0; left:0; width:140px; height:140px;
@@ -294,8 +299,8 @@ td.ev { color:var(--muted); font-size:11.5px; max-width:180px; overflow:hidden; 
 .legend { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px 12px; justify-content:center; }
 .lg { font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:5px; }
 .lg i { width:10px; height:10px; border-radius:3px; display:inline-block; }
-text.bl { font-size:11px; fill:var(--muted); }
-text.bv { font-size:10.5px; fill:var(--fg); font-weight:600; }
+text.bl { font-size:13px; fill:var(--muted); }
+text.bv { font-size:12.5px; fill:var(--fg); font-weight:600; }
 th { cursor:pointer; user-select:none; }
 th:hover { color:var(--accent); }
 td.ev a { color:var(--accent); text-decoration:none; }
